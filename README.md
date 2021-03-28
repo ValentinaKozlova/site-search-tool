@@ -1,7 +1,7 @@
 # site-search-tool
 
 Install dependencies:
-npm i
+``` npm i ```
 
 To run:
 1. node index.js
