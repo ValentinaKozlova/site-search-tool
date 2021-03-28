@@ -1,7 +1,8 @@
 const needle = require('needle');
-var fs = require('fs');
-var extractDomain = require('extract-domain');
+const fs = require('fs');
+const extractDomain = require('extract-domain');
 const parse = require('node-html-parser').parse;
+const prompt = require('prompt');
 
 async function openUrl(url) {
     return needle('get', url)
@@ -92,11 +93,20 @@ async function crawl(search_fn, rootUrl, depth = 2) {
     return results;
 }
 
-crawl(search.bind(null, ['expert']), 'https://www.justanswer.com/law/').then((res) => {
-    console.log(`Crawled ${res.length}`)
-    const resultsFound = res.reduce((count, {result}) => result.length !== 0? count+1 : count, 0)
-    console.log(`Found ${resultsFound}`)
-    fs.writeFileSync('./results.txt', JSON.stringify(res));
-})
-// crawl(search.bind(null, ['code']), 'https://medium.com/')
-// crawl(search.bind(null, ['flex']), 'https://css-tricks.com/ ')
+prompt.start()
+prompt.get(['url', 'keyword'], function (err, result) {
+    if (err) { console.log(err) }
+    const url = result.url || 'https://www.udemy.com/'
+    const keyword = result.keyword || 'software'
+    console.log('Command-line input received:');
+    console.log('URL: ' + url);
+    console.log('search keyword: ' + keyword);
+    crawl(search.bind(null, [keyword]), url).then((res) => {
+        console.log(`Crawled ${res.length}`)
+        const resultsFound = res.reduce((count, {result}) => result.length !== 0? count+1 : count, 0)
+        console.log(`Found ${resultsFound} pages with term ${keyword}.\nCheck results.txt for the result`)
+        fs.writeFileSync('./results.txt', JSON.stringify(res));
+    })
+});
+
+// crawl(search.bind(null, ['flex']), 'https://css-tricks.com/')
