@@ -1,35 +1,41 @@
 const needle = require('needle');
 const fs = require('fs');
-const extractDomain = require('extract-domain');
 const parse = require('node-html-parser').parse;
 const prompt = require('prompt');
 
 async function openUrl(url) {
     return needle('get', url)
         .then((response) => {
-            if (response.statusCode == 200) {
+            if (response.statusCode === 200) {
                 return parse(response.body)
             }
         })
         .catch(err => console.log(err))
 }
 
-function findLinks(html, url) {
-    if (!html) return
-    const links = html.querySelectorAll('a[href]')
-    let linksArr = []
-    //TODO check that link is valid
-    //TODO check relative and absolutes URLs
-    links.forEach(link => {
-        const href = link.getAttribute('href')
-        const domain = extractDomain(url)
-        const linkRegExp = new RegExp(`^http(|s):\/\/|(www).${domain}`, 'gi')
-        const isCurrentDomain = linkRegExp.test(href)
-        if (isCurrentDomain) {
-            linksArr.push(href)
-        }
-    })
-    return linksArr
+function tryParseUrl(base, acc, url) {
+    try {
+        return [...acc, new URL(url, base)];
+    } catch (e) {
+        console.error(`invalid url=${url}, base=${base}`, e);
+    }
+
+    return acc;
+}
+
+function findLinks(html, baseUrl) {
+    const base = new URL(baseUrl);
+
+    const links = html && html.querySelectorAll('a[href]') || [];
+    
+    return links
+        .map(l => l.getAttribute('href'))
+        .reduce(tryParseUrl.bind(null, base), [])
+        .filter(url => url.host === base.host)
+        .map(url => {
+            console.log(url)
+            return url.toString()
+        });
 }
 
 async function crawlPage(search_fn, {url, level}) {
@@ -37,7 +43,7 @@ async function crawlPage(search_fn, {url, level}) {
         let html = await openUrl(url);
         return {url, level, links: findLinks(html, url), result: search_fn(html)};
     } catch (e) {
-        console.error(e);
+        console.error(`request failed url=${url}`, e);
         return {url, level, links: [], result: null}
     }
 }
@@ -83,7 +89,7 @@ async function crawl(search_fn, rootUrl, depth = 2) {
                 .map(startTask.bind(null, search_fn))
                 .reduce(mergeTasks, {urls: [], tasks: {}});
 
-            urls = [...urls, started.urls];
+            urls = [...urls, ...new Set(started.urls)];
             tasks = {...tasks, ...started.tasks};
         }
 
@@ -96,7 +102,7 @@ async function crawl(search_fn, rootUrl, depth = 2) {
 prompt.start()
 prompt.get(['url', 'keyword'], function (err, result) {
     if (err) { console.log(err) }
-    const url = result.url || 'https://www.udemy.com/'
+    const url = result.url || 'https://www.udemy.com'
     const keyword = result.keyword || 'software'
     console.log('Command-line input received:');
     console.log('URL: ' + url);
@@ -108,5 +114,3 @@ prompt.get(['url', 'keyword'], function (err, result) {
         fs.writeFileSync('./results.txt', JSON.stringify(res));
     })
 });
-
-// crawl(search.bind(null, ['flex']), 'https://css-tricks.com/')
